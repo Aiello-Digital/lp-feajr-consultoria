@@ -859,37 +859,122 @@ document.querySelectorAll('a[href^="#"]').forEach(a=>a.addEventListener('click',
   if(t)t.scrollIntoView({behavior:'smooth',block:'start'});
 }));
 
+// ── STEP UI ──
 function uiS(s){
   document.querySelectorAll('.fstep').forEach(x=>x.classList.remove('active'));
-  document.querySelector(`.fstep[data-step="${s}"]`)?.classList.add('active');
-  const n=document.getElementById('snum');if(n)n.textContent=Math.min(s,4);
+  const target = document.querySelector(`.fstep[data-step="${s}"]`);
+  if(target) target.classList.add('active');
+  const n=document.getElementById('snum');
+  if(n) n.textContent=Math.min(s,4);
   document.querySelectorAll('.fdot').forEach((d,i)=>{
     d.classList.remove('active','done');
-    if(i+1===s)d.classList.add('active');
-    if(i+1<s)d.classList.add('done');
+    if(i+1===s) d.classList.add('active');
+    if(i+1<s)   d.classList.add('done');
   });
   document.querySelectorAll('.fline').forEach((l,i)=>l.classList.toggle('done',i+1<s));
-  setTimeout(()=>document.querySelector('.form-shell')?.scrollIntoView({behavior:'smooth',block:'nearest'}),50);
+  // scroll form into view smoothly
+  setTimeout(()=>{
+    const shell = document.querySelector('.form-shell');
+    if(shell){ shell.scrollIntoView({behavior:'smooth',block:'start'}); }
+  },80);
 }
-function val(s){
-  let ok=true;
-  const el=document.querySelector(`.fstep[data-step="${s}"]`);if(!el)return true;
-  el.querySelectorAll('input[required]').forEach(i=>{
+
+// ── VALIDATION with visual feedback ──
+function showError(el, msg){
+  el.style.outline='2px solid #e8520e';
+  el.style.borderColor='#e8520e';
+  // shake
+  el.style.animation='none';
+  el.offsetHeight; // reflow
+  el.style.animation='shake .3s ease';
+}
+function clearErrors(stepEl){
+  stepEl.querySelectorAll('input,textarea,select').forEach(i=>{
+    i.style.outline='';
     i.style.borderColor='';
-    if(i.type!=='radio'&&i.type!=='checkbox'&&!i.value.trim()){i.style.borderColor='#e8520e';ok=false;}
   });
-  const rg={};
-  el.querySelectorAll('input[type="radio"][required]').forEach(r=>{rg[r.name]=rg[r.name]||[];rg[r.name].push(r);});
-  Object.keys(rg).forEach(n=>{if(!rg[n].some(r=>r.checked))ok=false;});
+  stepEl.querySelectorAll('.radio-error-msg').forEach(m=>m.remove());
+}
+
+function val(s){
+  const stepEl = document.querySelector(`.fstep[data-step="${s}"]`);
+  if(!stepEl) return true;
+  clearErrors(stepEl);
+  let ok = true;
+  let firstBad = null;
+
+  // text/email/tel/textarea required fields
+  stepEl.querySelectorAll('input[required]:not([type="radio"]):not([type="checkbox"]), textarea[required]').forEach(inp=>{
+    if(!inp.value.trim()){
+      showError(inp, 'Campo obrigatório');
+      ok = false;
+      if(!firstBad) firstBad = inp;
+    }
+  });
+
+  // radio groups with required — check each group once
+  const groups={};
+  stepEl.querySelectorAll('input[type="radio"]').forEach(r=>{
+    if(!groups[r.name]) groups[r.name]=[];
+    groups[r.name].push(r);
+  });
+  Object.keys(groups).forEach(name=>{
+    const radios = groups[name];
+    const checked = radios.some(r=>r.checked);
+    if(!checked){
+      ok = false;
+      // highlight all option cards in this group
+      const container = radios[0].closest('.opt-grid,.opt-grid-2,.opt-pills');
+      if(container){
+        container.style.outline='2px solid #e8520e';
+        container.style.borderRadius='10px';
+        // add small error text if not already there
+        if(!container.nextElementSibling || !container.nextElementSibling.classList.contains('radio-error-msg')){
+          const msg = document.createElement('p');
+          msg.className='radio-error-msg';
+          msg.style.cssText='color:#e8520e;font-size:.75rem;margin-top:6px;font-weight:600;';
+          msg.textContent='Selecione uma opção para continuar';
+          container.parentNode.insertBefore(msg, container.nextSibling);
+        }
+        if(!firstBad) firstBad = container;
+      }
+    } else {
+      // clear outline if now valid
+      const container = radios[0].closest('.opt-grid,.opt-grid-2,.opt-pills');
+      if(container) container.style.outline='';
+    }
+  });
+
+  if(firstBad) firstBad.scrollIntoView({behavior:'smooth',block:'center'});
   return ok;
 }
-window.nxt=s=>{if(val(s))uiS(s+1);};
-window.prv=s=>uiS(s-1);
-const ff=document.getElementById('fform');
-if(ff)ff.addEventListener('submit',e=>{
-  e.preventDefault();if(!val(4))return;
+
+// clear radio outlines on selection
+document.addEventListener('change', e=>{
+  if(e.target.type==='radio'){
+    const container = e.target.closest('.opt-grid,.opt-grid-2,.opt-pills');
+    if(container){
+      container.style.outline='';
+      const msg = container.nextElementSibling;
+      if(msg && msg.classList.contains('radio-error-msg')) msg.remove();
+    }
+  }
+});
+
+window.nxt = function(s){
+  if(val(s)) uiS(s+1);
+};
+window.prv = function(s){
+  uiS(s-1);
+};
+
+const ff = document.getElementById('fform');
+if(ff) ff.addEventListener('submit', e=>{
+  e.preventDefault();
+  if(!val(4)) return;
   document.querySelectorAll('.fstep').forEach(x=>x.classList.remove('active'));
-  document.querySelector('.fsuccess')?.classList.add('active');
+  const success = document.querySelector('.fsuccess');
+  if(success) success.classList.add('active');
   document.querySelectorAll('.fdot').forEach(d=>{d.classList.remove('active');d.classList.add('done');});
   document.querySelectorAll('.fline').forEach(l=>l.classList.add('done'));
   // INTEGRAÇÃO: enviar dados para webhook Make/CRM
