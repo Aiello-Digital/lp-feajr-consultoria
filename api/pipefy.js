@@ -8,19 +8,19 @@
 // Map your Pipefy start-form field ids below. Leave a value as "" to skip that field.
 // Run the GraphiQL query in README.md to discover your field ids.
 
+// Mapped to pipe "Funil Comercial" (id 303238896).
 const FIELD_MAP = {
-  nome:     "",   // Nome / Name
-  email:    "",   // E-mail
-  tel:      "",   // WhatsApp / Telefone
-  empresa:  "",   // Empresa
-  setor:    "",   // Setor
-  estagio:  "",   // Estágio do negócio
-  fat:      "",   // Faturamento mensal
-  servicos: "",   // Soluções de interesse (checklist / multiselect field)
-  col:      "",   // Número de colaboradores
-  desafio:  "",   // Maior problema / desafio
-  inv:      "",   // Horizonte de investimento
-  origem:   "",   // Como nos encontrou
+  nome:     "lead",              // Nome do Lead
+  email:    "email",             // Email
+  tel:      "telefone_do_lead",  // Telefone do Lead
+  empresa:  "nome_da_empresa",   // Nome da Empresa
+  setor:    "setor_1",           // Setor
+  servicos: "servi_o",           // Serviço (short_text — enviado como lista separada por vírgula)
+  col:      "num_funcionarios",  // Num. Funcionarios
+  desafio:  "demanda",           // Demanda (inclui Estágio + Faturamento, que não têm campo próprio)
+  inv:      "copy_of_demanda",   // Disposição a pagar
+  origem:   "origem",            // Origem
+  // estagio / fat: o pipe não tem campo dedicado — são incorporados ao campo "Demanda".
 };
 
 // Coded form values -> human-readable labels stored in Pipefy.
@@ -96,9 +96,16 @@ module.exports = async (req, res) => {
   }
 
   // Normalize values to readable labels.
-  const servicos = Array.isArray(body.servicos)
+  const servicosArr = Array.isArray(body.servicos)
     ? body.servicos.map((s) => label("servicos", s))
     : [];
+
+  // The pipe has no dedicated Estágio / Faturamento fields, so fold them into "Demanda".
+  const demanda = [
+    body.estagio ? `Estágio: ${label("estagio", body.estagio)}` : null,
+    body.fat ? `Faturamento mensal: ${label("fat", body.fat)}` : null,
+    body.desafio ? `\nDesafio:\n${body.desafio}` : null,
+  ].filter(Boolean).join("\n");
 
   const values = {
     nome:     body.nome,
@@ -106,11 +113,9 @@ module.exports = async (req, res) => {
     tel:      body.tel,
     empresa:  body.empresa || "",
     setor:    body.setor || "",
-    estagio:  label("estagio", body.estagio),
-    fat:      label("fat", body.fat),
-    servicos, // array — Pipefy checklist/multiselect accepts an array
+    servicos: servicosArr.join(", "), // short_text field → comma-separated string
     col:      label("col", body.col),
-    desafio:  body.desafio || "",
+    desafio:  demanda,
     inv:      label("inv", body.inv),
     origem:   body.origem || "",
   };
